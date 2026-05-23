@@ -17,6 +17,18 @@ app.use(express.static(path.join(ROOT_DIR, 'public')));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+const API_KEY = process.env.KASPI_POS_API_KEY;
+if (!API_KEY) {
+  console.error('KASPI_POS_API_KEY is not set — refusing to start');
+  process.exit(1);
+}
+app.use('/api', (req, res, next) => {
+  if (req.headers['x-api-key'] !== API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/invoice', invoiceRoutes);
 app.use('/api/qr', qrRoutes);
