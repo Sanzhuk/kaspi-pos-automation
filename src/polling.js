@@ -101,7 +101,7 @@ const INVOICE_FINAL_STATUSES = {
 };
 
 const QR_INTERMEDIATE = new Set(['QrTokenCreated', 'Wait']);
-const INVOICE_INTERMEDIATE = new Set(['RemotePaymentCreated']);
+const INVOICE_INTERMEDIATE = new Set(['RemotePaymentCreated', 'Wait']);
 
 // ─── Track a payment ───
 
@@ -185,6 +185,14 @@ const sendWebhook = async (hook, payload, attempt = 1) => {
       .update(body)
       .digest('hex');
 
+  const dropFromRetries = () => {
+    pendingRetries = pendingRetries.filter(
+      (r) =>
+        !(r.hook.url === hook.url && r.payload.paymentId === payload.paymentId && r.payload.event === payload.event),
+    );
+    saveRetries();
+  };
+
   try {
     const resp = await fetchWithTimeout(hook.url, {
       method: 'POST',
@@ -194,13 +202,16 @@ const sendWebhook = async (hook, payload, attempt = 1) => {
       },
       body,
     });
+    // fetch only rejects on network/timeout errors — an HTTP error status
+    // (e.g. 403 signature mismatch, 5xx processing failure) resolves normally.
+    // Treat any non-2xx as a delivery failure so it goes through the retry path
+    // instead of being silently dropped.
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    }
     logger.info('WEBHOOK', `→ ${hook.url} | ${resp.status} ${resp.statusText}`);
     // Remove from pending retries on success
-    pendingRetries = pendingRetries.filter(
-      (r) =>
-        !(r.hook.url === hook.url && r.payload.paymentId === payload.paymentId && r.payload.event === payload.event),
-    );
-    saveRetries();
+    dropFromRetries();
   } catch (err) {
     logger.error('WEBHOOK', `→ ${hook.url} | attempt ${attempt} FAILED: ${err.message}`);
     if (attempt < 3) {
@@ -214,12 +225,8 @@ const sendWebhook = async (hook, payload, attempt = 1) => {
       saveRetries();
     } else {
       logger.error('WEBHOOK', `→ ${hook.url} | FAILED after 3 retries`);
-      // Remove from pending retries
-      pendingRetries = pendingRetries.filter(
-        (r) =>
-          !(r.hook.url === hook.url && r.payload.paymentId === payload.paymentId && r.payload.event === payload.event),
-      );
-      saveRetries();
+      // Give up — remove from pending retries
+      dropFromRetries();
     }
   }
 };
@@ -247,14 +254,20 @@ const processRetries = async () => {
 
 // ─── Resolve event from status ───
 
-const resolveEvent = (type, status) => {
-  if (type === 'qr') {
-    if (QR_INTERMEDIATE.has(status)) return null;
-    return QR_FINAL_STATUSES[status] || 'payment.failed';
-  } else {
-    if (INVOICE_INTERMEDIATE.has(status)) return null;
-    return INVOICE_FINAL_STATUSES[status] || 'payment.failed';
+export const resolveEvent = (type, status) => {
+  const finalStatuses = type === 'qr' ? QR_FINAL_STATUSES : INVOICE_FINAL_STATUSES;
+
+  // Only an explicitly-known final status produces a terminal event.
+  if (Object.prototype.hasOwnProperty.call(finalStatuses, status)) {
+    return finalStatuses[status];
   }
+
+  // Anything else — a known intermediate (e.g. Wait) OR an unrecognised status
+  // — is treated as "keep polling". Returning 'payment.failed' here was a bug:
+  // a single poll catching a transient/unknown status would fire a spurious
+  // payment.failed, delete the tracked payment, and the later real Processed
+  // status would never be delivered → user pays but access is never granted.
+  return null;
 };
 
 // ─── Poll cycle ───
