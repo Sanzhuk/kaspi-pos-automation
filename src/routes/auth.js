@@ -4,7 +4,6 @@ import { createEmptySession, applyOrgContext } from '../session.js';
 import {
   generateECDH,
   completeECDH,
-  completeECDHWithSaved,
   computeTokenSnMac,
   signDataPayload,
   computeXSU,
@@ -226,83 +225,6 @@ async function doFinish(session) {
       } catch (e) {
         console.error('ECDH key agreement failed:', e.message);
       }
-    }
-
-    // ── Sign-in-lite: activate session on mtoken before org-context-otp ──
-    const liteEcdhX509 = generateECDH();
-    console.log('Generated ECDH public key for sign-in-lite:', liteEcdhX509);
-
-    const liteUrl = `${KASPI_MTOKEN_URL}/v03/auth/sign-in-lite`;
-    const liteHeaders = {
-      'Content-Type': 'application/json',
-      Accept: '*/*',
-      'Accept-Language': 'ru',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'User-Agent': UA_NATIVE,
-      'X-Kb-TokenSn': session.tokenSN,
-      'X-Kb-TokenSnMac': computeTokenSnMac(session.tokenSN, rawSecret),
-      'X-Install-ID': DEVICE.installId,
-      'X-App-Ver': APP.version,
-      'X-App-Bld': APP.build,
-      'X-Locale': APP.locale,
-      'X-Call': 'notConnected',
-      'X-Time': nowISO(),
-      'X-S': 'R:0|E:0|RH:0|N:0',
-      'X-SV': '2',
-      'X-Kb-Client-Ip': '192.168.1.96',
-      'X-PkTag': DEVICE.pkTag,
-      'X-SU': computeXSU(liteUrl),
-      'X-SH':
-        'url,X-Kb-Client-Ip,X-Time,X-App-Ver,X-SV,X-Locale,X-App-Bld,X-Install-ID,X-Kb-TokenSn,X-S,X-Kb-TokenSnMac,X-Call',
-      'X-Request-ID': generateUUID(),
-    };
-    const liteBody = JSON.stringify({
-      OrganizationId: 0,
-      DeviceInformation: {
-        SdkVersion: 'AOTP service',
-        DeviceId: DEVICE.deviceId,
-        ApplicationId: 'kz.kaspi.business',
-        ScreenWidth: APP.screenW,
-        Model: APP.model,
-        ScreenHeight: APP.screenH,
-        DeviceName: APP.deviceName,
-        VersionName: APP.version,
-        BuildRelease: `${APP.platform} ${APP.platformVer}`,
-        Brand: APP.brand,
-        Board: APP.platformVer,
-        Platform: APP.platform,
-        Product: 'Kaspi Pay',
-        frontCameraAvailable: true,
-        VersionCode: APP.build,
-        InstallId: DEVICE.installId,
-      },
-    });
-    liteHeaders['X-Sign'] = computeXSign(liteUrl, liteHeaders, liteHeaders['X-SH'], liteBody);
-
-    const liteResp = await loggedFetch(liteUrl, {
-      method: 'POST',
-      headers: liteHeaders,
-      body: liteBody,
-    });
-
-    const liteResult = await liteResp.json();
-
-    if (liteResult.StatusCode === 0 && liteResult.Data) {
-      const newTokenSN = liteResult.Data.TokenSn || liteResult.Data.tokenSN || session.tokenSN;
-      session.tokenSN = newTokenSN;
-
-      const serverX509 = liteResult.Data.X509 || liteResult.Data.x509;
-      if (serverX509) {
-        try {
-          rawSecret = completeECDHWithSaved(serverX509);
-          vtokenSecret = encryptSecret(rawSecret);
-          console.log('SignInLite after registration: new vtoken activated');
-        } catch (e) {
-          console.error('SignInLite ECDH failed:', e.message);
-        }
-      }
-    } else {
-      console.warn('SignInLite after registration returned:', JSON.stringify(liteResult));
     }
 
     // Fetch org context
