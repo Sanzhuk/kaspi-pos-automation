@@ -92,11 +92,6 @@ const tryRestoreSession = async () => {
   return false;
 };
 
-const updateRefreshAuthBtn = () => {
-  const session = getSession();
-  const btn = $('btnRefreshAuth');
-  if (btn) btn.classList.toggle('hidden', !session.tokenSN || !session.vtokenSecret);
-};
 
 const formatPhone = (digits) => {
   // Format up to 10 digits as "XXX XXX XX XX"
@@ -116,7 +111,6 @@ const attachPhoneFormatter = (el) => {
 };
 
 window.addEventListener('DOMContentLoaded', () => {
-  updateRefreshAuthBtn();
   tryRestoreSession();
   attachPhoneFormatter($('phoneInput'));
   attachPhoneFormatter($('clientPhone'));

@@ -34,15 +34,16 @@ router.post('/operations', async (req, res) => {
   if (!endDate) return res.status(400).json({ error: 'endDate required' });
   try {
     const url = `${KASPI_QRPAY_URL}/v02/history/operations`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({
+      EndDate: endDate,
+      LastTransactionDate: lastTransactionDate || '',
+      StatementPeriodCode: statementPeriodCode ?? 0,
+    });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        EndDate: endDate,
-        LastTransactionDate: lastTransactionDate || '',
-        StatementPeriodCode: statementPeriodCode ?? 0,
-      }),
+      body: payload,
     });
     res.json(await resp.json());
   } catch (err) {
@@ -57,14 +58,15 @@ router.post('/details', async (req, res) => {
   if (!id) return res.status(400).json({ error: 'id required' });
   try {
     const url = `${KASPI_QRPAY_URL}/v01/kaspi-qr/operations/details`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({
+      Id: Number(id),
+      OperationMethod: operationMethod ?? 0,
+    });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        Id: Number(id),
-        OperationMethod: operationMethod ?? 0,
-      }),
+      body: payload,
     });
     res.json(await resp.json());
   } catch (err) {
