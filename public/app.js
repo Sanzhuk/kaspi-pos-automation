@@ -448,7 +448,7 @@ const createQr = async () => {
       const pollInterval = (parseInt(options.qrCodeScanEventPollingInterval) || 3) * 1000;
       const waitTimeout = parseInt(options.qrCodeScanWaitTimeout) || 180;
 
-      $('qrCodeContainer').innerHTML = generateQrSvg(resp.Data.QrToken);
+      $('qrCodeContainer').innerHTML = generateQrSvg(resp.Data.QrOriginalToken);
       $('qrStatus').className = 'status-bar status-info';
       $('qrStatus').textContent = 'Ожидание сканирования...';
       $('qrResult').classList.remove('hidden');

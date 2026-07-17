@@ -75,6 +75,7 @@ router.post('/create', async (req, res) => {
       );
     }
     if (d && d.QrToken) {
+      d.QrOriginalToken = d.QrToken;
       d.QrToken = d.QrToken.replace('https://qr.kaspi.kz/', 'https://pay.kaspi.kz/pay/');
     }
     res.json(kaspiResponse);
