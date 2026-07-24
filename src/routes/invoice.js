@@ -60,9 +60,9 @@ router.post('/create', async (req, res) => {
     });
     const kaspiResponse = await resp.json();
     const d = kaspiResponse.Data;
-    if (d && d.Id && d.Status === 'RemotePaymentCreated') {
+    if (d && d.QrOperationId) {
       trackPayment(
-        d.Id,
+        d.QrOperationId,
         'invoice',
         {
           tokenSN: req.session.tokenSN,

@@ -299,9 +299,31 @@ const pollOnce = async () => {
     }
 
     if (!result || !result.Data) {
+      // Kaspi returns StatusCode -101001 when session was evicted (login from another device)
+      if (result && result.StatusCode === -101001) {
+        logger.warn('POLLING', `Payment ${id} — session evicted (StatusCode -101001)`);
+        sendWebhooks(
+          'payment.lost',
+          buildPayload('payment.lost', entry, {
+            Status: 'SessionExpired',
+            StatusDesc: 'Сессия Kaspi вытеснена (вход с другого устройства), статус платежа неизвестен',
+          }),
+        );
+        trackedPayments.delete(id);
+        changed = true;
+        continue;
+      }
+
       entry.retryCount++;
       if (entry.retryCount > 10) {
         logger.warn('POLLING', `Removing payment ${id} after 10 failed attempts`);
+        sendWebhooks(
+          'payment.lost',
+          buildPayload('payment.lost', entry, {
+            Status: 'PollingFailed',
+            StatusDesc: `Не удалось получить статус платежа после ${entry.retryCount} попыток`,
+          }),
+        );
         trackedPayments.delete(id);
         changed = true;
       }

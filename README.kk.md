@@ -36,7 +36,7 @@ Kaspi Pay API арқылы POS-жүйелер үшін төлемдерді ав
 
 Сервер жасалған QR және invoice төлемдерінің статустарын автоматты түрде бақылайды (әр 3 секунд сайын polling) және статус өзгерген кезде көрсетілген URL-дарға HTTP POST хабарламаларын жібереді.
 
-- 📡 **Оқиғалар:** `payment.success` · `payment.failed` · `payment.expired`
+- 📡 **Оқиғалар:** `payment.success` · `payment.failed` · `payment.expired` · `payment.lost`
 - ⚙️ **Баптау:** `webhooks.json` файлы ([`webhooks.example.json`](./webhooks.example.json) қараңыз)
 - 🔐 **Қолтаңба:** HMAC SHA-256
 - 🔄 **Retry:** өсетін кідіріспен 3 әрекетке дейін

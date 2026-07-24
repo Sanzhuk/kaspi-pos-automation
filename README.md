@@ -36,7 +36,7 @@
 
 Сервер автоматически отслеживает статусы созданных QR- и invoice-платежей (polling каждые 3 сек.) и отправляет HTTP POST-уведомления на указанные URL при изменении статуса.
 
-- 📡 **События:** `payment.success` · `payment.failed` · `payment.expired`
+- 📡 **События:** `payment.success` · `payment.failed` · `payment.expired` · `payment.lost`
 - ⚙️ **Настройка:** файл `webhooks.json` (см. [`webhooks.example.json`](./webhooks.example.json))
 - 🔐 **Подпись:** HMAC SHA-256
 - 🔄 **Retry:** до 3 попыток с нарастающей задержкой
