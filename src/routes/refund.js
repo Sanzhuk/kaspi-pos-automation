@@ -35,15 +35,16 @@ router.post('/create', async (req, res) => {
     return res.status(400).json({ error: 'qrOperationId and returnAmount required' });
   try {
     const url = `${KASPI_QRPAY_URL}/v01/kaspi-qr/history-pos-return`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({
+      ReturnAmount: Number(returnAmount),
+      QrOperationId: Number(qrOperationId),
+      DeviceInterface: 'Pos',
+    });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        ReturnAmount: Number(returnAmount),
-        QrOperationId: Number(qrOperationId),
-        DeviceInterface: 'Pos',
-      }),
+      body: payload,
     });
     res.json(await resp.json());
   } catch (err) {

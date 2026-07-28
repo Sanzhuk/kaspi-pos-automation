@@ -51,17 +51,18 @@ router.post('/create', async (req, res) => {
 
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/create`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({ PhoneNumber: phoneNumber, Amount: Number(amount), Comment: comment || '' });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ PhoneNumber: phoneNumber, Amount: Number(amount), Comment: comment || '' }),
+      body: payload,
     });
     const kaspiResponse = await resp.json();
     const d = kaspiResponse.Data;
-    if (d && d.Id && d.Status === 'RemotePaymentCreated') {
+    if (d && d.QrOperationId) {
       trackPayment(
-        d.Id,
+        d.QrOperationId,
         'invoice',
         {
           tokenSN: req.session.tokenSN,
@@ -105,11 +106,12 @@ router.post('/cancel', async (req, res) => {
 
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/cancel`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({ qrOperationId: Number(operationId) });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ qrOperationId: Number(operationId) }),
+      body: payload,
     });
     res.json(await resp.json());
   } catch (err) {
@@ -122,11 +124,12 @@ router.post('/cancel', async (req, res) => {
 router.post('/history', async (req, res) => {
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/history`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({ MaxResult: 20 });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ MaxResult: 20 }),
+      body: payload,
     });
     res.json(await resp.json());
   } catch (err) {

@@ -553,7 +553,7 @@ curl "http://localhost:3000/api/session/check" \
 [
   {
     "url": "https://example.com/webhook",
-    "events": ["payment.success", "payment.failed", "payment.expired"],
+    "events": ["payment.success", "payment.failed", "payment.expired", "payment.lost"],
     "secret": "your-webhook-secret"
   }
 ]
@@ -578,7 +578,7 @@ curl "http://localhost:3000/api/session/check" \
   },
   {
     "url": "https://my-accounting.com/hook",
-    "events": ["payment.success", "payment.failed", "payment.expired"],
+    "events": ["payment.success", "payment.failed", "payment.expired", "payment.lost"],
     "secret": "accounting-secret"
   }
 ]
@@ -591,6 +591,7 @@ curl "http://localhost:3000/api/session/check" \
 | `payment.success` | Платёж успешно проведён | QR: статус `Processed`; Invoice: статус `Processed` |
 | `payment.failed` | Платёж отклонён / отменён | QR: `CancelledByUser`, `Rejected`, `Error` и др.; Invoice: `RemotePaymentCanceled`, `RemotePaymentRejected` |
 | `payment.expired` | Время оплаты истекло | QR: `QrTokenDiscarded`, `Expired`; Invoice: `Expired` |
+| `payment.lost` | Статус платежа неизвестен — требуется ручная проверка | Сессия Kaspi вытеснена (`SessionExpired`) или исчерпаны попытки опроса (`PollingFailed`) |
 
 ### Формат payload
 
@@ -614,7 +615,7 @@ curl "http://localhost:3000/api/session/check" \
 
 | Поле | Тип | Описание |
 |---|---|---|
-| `event` | `string` | Название события (`payment.success`, `payment.failed`, `payment.expired`) |
+| `event` | `string` | Название события (`payment.success`, `payment.failed`, `payment.expired`, `payment.lost`) |
 | `paymentId` | `string` | ID платежа (QR operationId или invoice operationId) |
 | `type` | `string` | Тип платежа: `qr` или `invoice` |
 | `status` | `string` | Финальный статус от Kaspi API |

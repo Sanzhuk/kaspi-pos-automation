@@ -77,22 +77,22 @@ export const KASPI_MTOKEN_URL = 'https://mtoken.kaspi.kz';
 export const KASPI_QRPAY_URL = 'https://qrpay.kaspi.kz';
 
 // ─── App version & device constants ───
-// These values are hardcoded intentionally: the Kaspi API validates device
-// parameters and may reject requests with arbitrary or unknown values.
+// Defaults match a known-good Kaspi Pay client. Override via .env if needed.
+// ⚠️ The Kaspi API validates these parameters and may reject unknown values.
 
 export const APP = {
-  version: '4.105',
-  build: '1070',
-  platform: 'iOS',
-  platformVer: '18.5',
-  locale: 'ru-RU',
-  model: 'iPhone17,3',
-  brand: 'Apple',
-  deviceName: 'iPhone',
-  screenW: '393.0',
-  screenH: '852.0',
-  cfNetwork: 'CFNetwork/3826.500.131',
-  darwin: 'Darwin/24.5.0',
+  version: process.env.APP_VERSION || '4.112.1',
+  build: process.env.APP_BUILD || '1107',
+  platform: process.env.APP_PLATFORM || 'iOS',
+  platformVer: process.env.APP_PLATFORM_VER || '18.4',
+  locale: process.env.APP_LOCALE || 'ru-RU',
+  model: process.env.APP_MODEL || 'iPhone16,2',
+  brand: process.env.APP_BRAND || 'Apple',
+  deviceName: process.env.APP_DEVICE_NAME || 'iPhone',
+  screenW: process.env.APP_SCREEN_W || '430.0',
+  screenH: process.env.APP_SCREEN_H || '932.0',
+  cfNetwork: process.env.APP_CFNETWORK || 'CFNetwork/3826.400.120',
+  darwin: process.env.APP_DARWIN || 'Darwin/24.4.0',
 };
 
 export const UA_NATIVE = `Kaspi%20Pay/${APP.build} ${APP.cfNetwork} ${APP.darwin}`;

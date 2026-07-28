@@ -31,15 +31,16 @@ router.get('/check', async (req, res) => {
   // 3. Ping Kaspi API to verify the token is still accepted
   try {
     const url = `${KASPI_QRPAY_URL}/v02/history/operations`;
-    const headers = { ...signedQrPayHeaders(url, session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({
+      EndDate: new Date().toISOString().slice(0, 10),
+      LastTransactionDate: '',
+      StatementPeriodCode: 0,
+    });
+    const headers = { ...signedQrPayHeaders(url, session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        EndDate: new Date().toISOString().slice(0, 10),
-        LastTransactionDate: '',
-        StatementPeriodCode: 0,
-      }),
+      body: payload,
     });
 
     const body = await resp.json().catch(() => ({}));

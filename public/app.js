@@ -92,11 +92,6 @@ const tryRestoreSession = async () => {
   return false;
 };
 
-const updateRefreshAuthBtn = () => {
-  const session = getSession();
-  const btn = $('btnRefreshAuth');
-  if (btn) btn.classList.toggle('hidden', !session.tokenSN || !session.vtokenSecret);
-};
 
 const formatPhone = (digits) => {
   // Format up to 10 digits as "XXX XXX XX XX"
@@ -116,7 +111,6 @@ const attachPhoneFormatter = (el) => {
 };
 
 window.addEventListener('DOMContentLoaded', () => {
-  updateRefreshAuthBtn();
   tryRestoreSession();
   attachPhoneFormatter($('phoneInput'));
   attachPhoneFormatter($('clientPhone'));
@@ -454,7 +448,7 @@ const createQr = async () => {
       const pollInterval = (parseInt(options.qrCodeScanEventPollingInterval) || 3) * 1000;
       const waitTimeout = parseInt(options.qrCodeScanWaitTimeout) || 180;
 
-      $('qrCodeContainer').innerHTML = generateQrSvg(resp.Data.QrToken);
+      $('qrCodeContainer').innerHTML = generateQrSvg(resp.Data.QrOriginalToken);
       $('qrStatus').className = 'status-bar status-info';
       $('qrStatus').textContent = 'Ожидание сканирования...';
       $('qrResult').classList.remove('hidden');

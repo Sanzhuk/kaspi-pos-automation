@@ -4,13 +4,11 @@ import { createEmptySession, applyOrgContext } from '../session.js';
 import {
   generateECDH,
   completeECDH,
-  completeECDHWithSaved,
   computeTokenSnMac,
   signDataPayload,
   computeXSU,
   computeXSign,
   encryptSecret,
-  decryptSecret,
 } from '../crypto.js';
 import { loggedFetch, extractUserToken, entranceCookie, generateUUID, nowISO } from '../helpers.js';
 
@@ -199,16 +197,17 @@ async function doFinish(session) {
     'X-Time-Zone': 'GMT+05:00',
     'X-SH': 'url,X-Time-Zone,X-Request-ID,X-Net-Type,X-Emulator,X-Call,X-Platform-Type,X-Locale,X-Time,X-SV',
   };
-  finishHeaders['X-Sign'] = computeXSign(finishUrl, finishHeaders, finishHeaders['X-SH']);
+  const finishBody = JSON.stringify({
+    signed: { sign: signDataPayload(signedDataB64), data: signedDataB64 },
+    guard: { pinHash: DEVICE.pinHash, x509: ecdhX509 },
+    processId: session.processId,
+  });
+  finishHeaders['X-Sign'] = computeXSign(finishUrl, finishHeaders, finishHeaders['X-SH'], finishBody);
 
   const resp = await loggedFetch(finishUrl, {
     method: 'POST',
     headers: finishHeaders,
-    body: JSON.stringify({
-      signed: { sign: signDataPayload(signedDataB64), data: signedDataB64 },
-      guard: { pinHash: DEVICE.pinHash, x509: ecdhX509 },
-      processId: session.processId,
-    }),
+    body: finishBody,
   });
 
   const body = await resp.json();
@@ -250,38 +249,37 @@ async function doFinish(session) {
       'X-Kb-Client-Ip': '192.168.1.96',
       'X-PkTag': DEVICE.pkTag,
       'X-SU': computeXSU(orgUrl),
-      'X-SH': piValue
-        ? 'url,X-Kb-Client-Ip,X-App-Bld,X-S,X-Kb-TokenSn,X-Time,X-App-Ver,X-Kb-TokenSnMac,X-Call,X-PI,X-Install-ID,X-Locale,X-SV'
-        : 'url,X-Kb-Client-Ip,X-Time,X-App-Ver,X-SV,X-Locale,X-App-Bld,X-Install-ID,X-Kb-TokenSn,X-S,X-Kb-TokenSnMac,X-Call',
+      'X-SH':
+        'url,X-Kb-Client-Ip,X-Time,X-App-Ver,X-SV,X-Locale,X-App-Bld,X-Install-ID,X-Kb-TokenSn,X-S,X-Kb-TokenSnMac,X-Call',
       'X-Request-ID': generateUUID(),
     };
-    if (piValue) orgHeaders['X-PI'] = piValue;
-    orgHeaders['X-Sign'] = computeXSign(orgUrl, orgHeaders, orgHeaders['X-SH']);
+    const orgPayload = JSON.stringify({
+      DeviceInformation: {
+        SdkVersion: 'AOTP service',
+        DeviceId: DEVICE.deviceId,
+        ApplicationId: 'kz.kaspi.business',
+        ScreenWidth: APP.screenW,
+        Model: APP.model,
+        ScreenHeight: APP.screenH,
+        DeviceName: APP.deviceName,
+        VersionName: APP.version,
+        BuildRelease: `${APP.platform} ${APP.platformVer}`,
+        Brand: APP.brand,
+        Board: APP.platformVer,
+        Platform: APP.platform,
+        Product: 'Kaspi Pay',
+        frontCameraAvailable: true,
+        VersionCode: APP.build,
+        InstallId: DEVICE.installId,
+      },
+      OrganizationId: 0,
+    });
+    orgHeaders['X-Sign'] = computeXSign(orgUrl, orgHeaders, orgHeaders['X-SH'], orgPayload);
 
     const orgResp = await loggedFetch(orgUrl, {
       method: 'POST',
       headers: orgHeaders,
-      body: JSON.stringify({
-        DeviceInformation: {
-          SdkVersion: 'AOTP service',
-          DeviceId: DEVICE.deviceId,
-          ApplicationId: 'kz.kaspi.business',
-          ScreenWidth: APP.screenW,
-          Model: APP.model,
-          ScreenHeight: APP.screenH,
-          DeviceName: APP.deviceName,
-          VersionName: APP.version,
-          BuildRelease: `${APP.platform} ${APP.platformVer}`,
-          Brand: APP.brand,
-          Board: APP.platformVer,
-          Platform: APP.platform,
-          Product: 'Kaspi Pay',
-          frontCameraAvailable: true,
-          VersionCode: APP.build,
-          InstallId: DEVICE.installId,
-        },
-        OrganizationId: 0,
-      }),
+      body: orgPayload,
     });
 
     const orgBody = await orgResp.json();
@@ -303,193 +301,6 @@ async function doFinish(session) {
     throw new Error('Finish failed: ' + JSON.stringify(body));
   }
 }
-
-// ═══════════════════════════════════════════════════
-//  Refresh — SignInLite (new tokenSN + vtokenSecret)
-//  POST /v03/auth/sign-in-lite
-// ═══════════════════════════════════════════════════
-
-router.post('/refresh', async (req, res) => {
-  const { tokenSN, vtokenSecret, organizationId } = req.body;
-  if (!tokenSN) return res.status(400).json({ error: 'tokenSN required' });
-  if (!vtokenSecret) return res.status(400).json({ error: 'vtokenSecret required' });
-
-  try {
-    const rawSecret = decryptSecret(vtokenSecret);
-
-    const liteUrl = `${KASPI_MTOKEN_URL}/v03/auth/sign-in-lite`;
-    const liteHeaders = {
-      'Content-Type': 'application/json',
-      Accept: '*/*',
-      'Accept-Language': 'ru',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'User-Agent': UA_NATIVE,
-      'X-Kb-TokenSn': tokenSN,
-      'X-Kb-TokenSnMac': computeTokenSnMac(tokenSN, rawSecret),
-      'X-Install-ID': DEVICE.installId,
-      'X-App-Ver': APP.version,
-      'X-App-Bld': APP.build,
-      'X-Locale': APP.locale,
-      'X-Call': 'notConnected',
-      'X-Time': nowISO(),
-      'X-S': 'R:0|E:0|RH:0|N:0',
-      'X-SV': '2',
-      'X-Kb-Client-Ip': '192.168.1.96',
-      'X-PkTag': DEVICE.pkTag,
-      'X-SU': computeXSU(liteUrl),
-      'X-SH':
-        'url,X-Kb-Client-Ip,X-Time,X-App-Ver,X-SV,X-Locale,X-App-Bld,X-Install-ID,X-Kb-TokenSn,X-S,X-Kb-TokenSnMac,X-Call',
-      'X-Request-ID': generateUUID(),
-    };
-    liteHeaders['X-Sign'] = computeXSign(liteUrl, liteHeaders, liteHeaders['X-SH']);
-
-    const resp = await loggedFetch(liteUrl, {
-      method: 'POST',
-      headers: liteHeaders,
-      body: JSON.stringify({
-        OrganizationId: organizationId || 0,
-        DeviceInformation: {
-          SdkVersion: 'AOTP service',
-          DeviceId: DEVICE.deviceId,
-          ApplicationId: 'kz.kaspi.business',
-          ScreenWidth: APP.screenW,
-          Model: APP.model,
-          ScreenHeight: APP.screenH,
-          DeviceName: APP.deviceName,
-          VersionName: APP.version,
-          BuildRelease: `${APP.platform} ${APP.platformVer}`,
-          Brand: APP.brand,
-          Board: APP.platformVer,
-          Platform: APP.platform,
-          Product: 'Kaspi Pay',
-          frontCameraAvailable: true,
-          VersionCode: APP.build,
-          InstallId: DEVICE.installId,
-        },
-      }),
-    });
-
-    const body = await resp.json();
-
-    if (body.StatusCode === 0 && body.Data) {
-      const newTokenSN = body.Data.TokenSn || body.Data.tokenSN || tokenSN;
-      let newVtokenSecret = vtokenSecret;
-      let newRawSecret = null;
-      const serverX509 = body.Data.X509 || body.Data.x509;
-
-      if (serverX509) {
-        try {
-          newRawSecret = completeECDHWithSaved(serverX509);
-          newVtokenSecret = encryptSecret(newRawSecret);
-          console.log('SignInLite: new vtoken activated successfully');
-        } catch (e) {
-          console.error('SignInLite ECDH failed:', e.message);
-        }
-      }
-
-      const activeRawSecret = newRawSecret || decryptSecret(newVtokenSecret);
-
-      // ── Step 2: org-context-otp to load organization context ──
-      const session = createEmptySession();
-      session.tokenSN = newTokenSN;
-      let orgContextOk = false;
-
-      // Pre-fill from SignInLite response if available
-      if (body.Data.OrganizationContext || body.Data.OrganizationContextLite) {
-        applyOrgContext(session, body.Data.OrganizationContext || body.Data.OrganizationContextLite);
-      }
-
-      try {
-        const orgUrl = `${KASPI_MTOKEN_URL}/v08/organizations/org-context-otp`;
-        const orgHeaders = {
-          'Content-Type': 'application/json',
-          Accept: '*/*',
-          'Accept-Language': 'ru',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'User-Agent': UA_NATIVE,
-          'X-Kb-TokenSn': newTokenSN,
-          'X-Kb-TokenSnMac': computeTokenSnMac(newTokenSN, activeRawSecret),
-          'X-Install-ID': DEVICE.installId,
-          'X-App-Ver': APP.version,
-          'X-App-Bld': APP.build,
-          'X-Locale': APP.locale,
-          'X-Call': 'notConnected',
-          'X-Time': nowISO(),
-          'X-S': 'R:0|E:0|RH:0|N:0',
-          'X-SV': '2',
-          'X-Kb-Client-Ip': '192.168.1.96',
-          'X-PkTag': DEVICE.pkTag,
-          'X-PI': session.profileId || '',
-          'X-SU': computeXSU(orgUrl),
-          'X-SH':
-            'url,X-Kb-Client-Ip,X-Time,X-App-Ver,X-SV,X-Locale,X-App-Bld,X-Install-ID,X-Kb-TokenSn,X-S,X-Kb-TokenSnMac,X-Call',
-          'X-Request-ID': generateUUID(),
-        };
-        orgHeaders['X-Sign'] = computeXSign(orgUrl, orgHeaders, orgHeaders['X-SH']);
-
-        const orgResp = await loggedFetch(orgUrl, {
-          method: 'POST',
-          headers: orgHeaders,
-          body: JSON.stringify({
-            OrganizationId: organizationId || session.organizationId || 0,
-            DeviceInformation: {
-              SdkVersion: 'AOTP service',
-              DeviceId: DEVICE.deviceId,
-              ApplicationId: 'kz.kaspi.business',
-              ScreenWidth: APP.screenW,
-              Model: APP.model,
-              ScreenHeight: APP.screenH,
-              DeviceName: APP.deviceName,
-              VersionName: APP.version,
-              BuildRelease: `${APP.platform} ${APP.platformVer}`,
-              Brand: APP.brand,
-              Board: APP.platformVer,
-              Platform: APP.platform,
-              Product: 'Kaspi Pay',
-              frontCameraAvailable: true,
-              VersionCode: APP.build,
-              InstallId: DEVICE.installId,
-            },
-          }),
-        });
-
-        const orgBody = await orgResp.json();
-        if (orgBody.StatusCode === 0 && orgBody.Data) {
-          applyOrgContext(session, orgBody.Data);
-          orgContextOk = true;
-          console.log('Refresh org-context-otp: OK, profileId:', session.profileId, 'orgId:', session.organizationId);
-        } else {
-          console.log('Refresh org-context-otp: failed (', orgBody.StatusCode, ')');
-        }
-      } catch (e) {
-        console.error('Refresh org-context-otp error:', e.message);
-      }
-
-      res.json({
-        success: true,
-        tokenSN: newTokenSN,
-        vtokenSecret: newVtokenSecret,
-        profileId: session.profileId,
-        organizationId: session.organizationId,
-        orgName: session.orgName,
-        sessionId: body.Data.SessionId,
-        organizations: body.Data.OrganizationContext?.Organizations || body.Data.OrganizationContextLite?.Organizations,
-        orgContext: orgContextOk,
-        message: 'Session refreshed via SignInLite + org-context',
-      });
-    } else {
-      res.json({
-        success: false,
-        statusCode: body.StatusCode,
-        message:
-          body.Message || body.Description || 'SignInLite failed — token may be expired, re-auth via SMS required',
-        body,
-      });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ─── Session status (client sends tokenSN) ───
 
